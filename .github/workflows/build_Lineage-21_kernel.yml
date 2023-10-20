@@ -1,0 +1,69 @@
+name: Build Lineage-21 Kernel with KernelSU
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_HARDLINK: "true"
+      
+    steps:
+    - name: Checkout this repository
+      uses: actions/checkout@v3
+      with:
+        ref: main
+        path: repo
+
+    - name: Checkout kernel code
+      uses: actions/checkout@v3
+      with:
+        repository: LineageOS/android_kernel_oneplus_sdm845
+        ref: lineage-21
+        path: android_kernel_oneplus_sdm845
+
+    - name: Checkout AnyKernel3 code
+      uses: actions/checkout@v3
+      with:
+        ref: AnyKernel3
+        path: AnyKernel3
+
+    - name: Set up ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        max-size: 2G
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get upgrade
+        sudo apt-get install gcc-aarch64-linux-gnu
+        sudo apt-get install gcc-arm-linux-gnueabi
+        sudo apt-get install binutils make python3 libssl-dev build-essential bc bison flex unzip libssl-dev ca-certificates xz-utils mkbootimg cpio device-tree-compiler git git-lfs
+
+    - name: download clang and delete some AnyKernel3 code
+      run: |
+        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.0/clang+llvm-14.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+        tar xf clang+llvm-14.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+        rm -rf AnyKernel3/.git
+
+    - name: Build Kernel With KernelSU
+      run: |
+        export PATH=$(pwd)/clang+llvm-14.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/:$PATH
+        cd android_kernel_oneplus_sdm845
+        make O=out $KERNEL_DEFCONFIG
+        make -j$(nproc --all) O=out ARCH=arm64 CC="ccache clang" CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- LLVM=1
+        cp out/arch/arm64/boot/Image.gz-dtb ../AnyKernel3
+      env:
+        KERNEL_DEFCONFIG: "enchilada_defconfig"
+        ARCH: arm64
+        SUBARCH: arm64
+
+    - name: Upload AnyKernel3
+      uses: actions/upload-artifact@v3
+      with:
+        name: AnyKernel3_Lineage-21
+        path: "AnyKernel3/*"
