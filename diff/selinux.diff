@@ -1,5 +1,5 @@
 diff --git a/security/selinux/hooks.c b/security/selinux/hooks.c
-index 4abba0e..eb84ad5 100644
+index 4abba0e1674d..eb84ad575e41 100644
 --- a/security/selinux/hooks.c
 +++ b/security/selinux/hooks.c
 @@ -2318,9 +2318,12 @@ static int check_nnp_nosuid(const struct linux_binprm *bprm,

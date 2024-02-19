@@ -44,6 +44,34 @@ jobs:
         sudo apt-get install gcc-arm-linux-gnueabi
         sudo apt-get install binutils make python3 libssl-dev build-essential bc bison flex unzip libssl-dev ca-certificates xz-utils mkbootimg cpio device-tree-compiler git git-lfs
 
+    - name: Check KernelSU code
+      run: |
+        cd android_kernel_oneplus_sdm845
+        curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s
+
+    - name: Get version and commit
+      run: |
+        cd android_kernel_oneplus_sdm845/KernelSU
+        VERSION=$(($(git rev-list --count HEAD) + 10200))
+        echo "KSU_VERSION=$VERSION" >> $GITHUB_ENV
+        echo $VERSION
+
+    - name: modify code
+      run: |
+        cd android_kernel_oneplus_sdm845
+        git apply ../repo/diff/patch.diff
+        git apply ../repo/diff/drivers.diff
+        git apply ../repo/diff/selinux.diff
+        cp ../repo/configs/* ./arch/arm64/configs
+
+    - name: Submit the modified file
+      run: |
+        cd android_kernel_oneplus_sdm845
+        git config --global user.name "aoxiang1221"
+        git config --global user.email "wu13355973460@gmail.com"
+        git add .
+        git commit -m "update"
+
     - name: download clang and delete some AnyKernel3 code
       run: |
         wget https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.0/clang+llvm-14.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
@@ -58,12 +86,12 @@ jobs:
         make -j$(nproc --all) O=out ARCH=arm64 CC="ccache clang" CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- LLVM=1
         cp out/arch/arm64/boot/Image.gz-dtb ../AnyKernel3
       env:
-        KERNEL_DEFCONFIG: "enchilada_defconfig"
+        KERNEL_DEFCONFIG: "enchilada_ksu_defconfig"
         ARCH: arm64
         SUBARCH: arm64
 
     - name: Upload AnyKernel3
       uses: actions/upload-artifact@v3
       with:
-        name: AnyKernel3_Lineage-21
+        name: AnyKernel3_Lineage-21_${{ env.KSU_VERSION }}
         path: "AnyKernel3/*"

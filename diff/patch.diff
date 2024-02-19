@@ -1,96 +1,109 @@
 diff --git a/fs/exec.c b/fs/exec.c
-index 5addf3b..20880d7 100644
+index 5addf3b00561..88c3f067f9fc 100644
 --- a/fs/exec.c
 +++ b/fs/exec.c
-@@ -1673,6 +1673,12 @@ static int exec_binprm(struct linux_binprm *bprm)
+@@ -1673,6 +1673,14 @@ static int exec_binprm(struct linux_binprm *bprm)
  	return ret;
  }
  
++#ifdef CONFIG_KSU
 +extern bool ksu_execveat_hook __read_mostly;
 +extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
-+           void *envp, int *flags);
++			void *envp, int *flags);
 +extern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
-+	        void *argv, void *envp, int *flags);
++				 void *argv, void *envp, int *flags);
++#endif
 +
  /*
   * sys_execve() executes a new program.
   */
-@@ -1687,6 +1693,11 @@ static int do_execveat_common(int fd, struct filename *filename,
+@@ -1687,6 +1695,13 @@ static int do_execveat_common(int fd, struct filename *filename,
  	struct files_struct *displaced;
  	int retval;
  
++#ifdef CONFIG_KSU
 +	if (unlikely(ksu_execveat_hook))
-+	    ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
++		ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
 +	else
-+	    ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
++		ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);
++#endif
 +
  	if (IS_ERR(filename))
  		return PTR_ERR(filename);
  
 diff --git a/fs/open.c b/fs/open.c
-index f2b82c4..3765859 100644
+index f2b82c462fbb..94b837e7a8fa 100644
 --- a/fs/open.c
 +++ b/fs/open.c
-@@ -355,6 +355,9 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
+@@ -355,6 +355,11 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
  	return error;
  }
  
++#ifdef CONFIG_KSU
 +extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode,
-+	    int *flags);
++			 int *flags);
++#endif
 +
  /*
   * access() needs to use the real uid/gid, not the effective uid/gid.
   * We do this by temporarily clearing all FS-related capabilities and
-@@ -370,6 +373,8 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+@@ -369,6 +374,9 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ 	struct vfsmount *mnt;
  	int res;
  	unsigned int lookup_flags = LOOKUP_FOLLOW;
++#ifdef CONFIG_KSU
++	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
++#endif
  
-+        ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
-+
  	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
  		return -EINVAL;
- 
 diff --git a/fs/read_write.c b/fs/read_write.c
-index 9012312..b59f7a6 100644
+index 901231269242..63495bb997ca 100644
 --- a/fs/read_write.c
 +++ b/fs/read_write.c
-@@ -456,10 +456,17 @@ ssize_t __vfs_read(struct file *file, char __user *buf, size_t count,
+@@ -456,10 +456,20 @@ ssize_t __vfs_read(struct file *file, char __user *buf, size_t count,
  }
  EXPORT_SYMBOL(__vfs_read);
  
++#ifdef CONFIG_KSU
 +extern bool ksu_vfs_read_hook __read_mostly;
 +extern int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
-+	   size_t *count_ptr, loff_t **pos);
-+
++			size_t *count_ptr, loff_t **pos);
++#endif
  ssize_t vfs_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
  {
  	ssize_t ret;
  
++#ifdef CONFIG_KSU
 +	if (unlikely(ksu_vfs_read_hook))
-+	    ksu_handle_vfs_read(&file, &buf, &count, &pos);
++		ksu_handle_vfs_read(&file, &buf, &count, &pos);
++#endif
 +
  	if (!(file->f_mode & FMODE_READ))
  		return -EBADF;
  	if (!(file->f_mode & FMODE_CAN_READ))
 diff --git a/fs/stat.c b/fs/stat.c
-index 068fdbc..777aeaa 100644
+index 068fdbcc9e26..fbb5d8042b69 100644
 --- a/fs/stat.c
 +++ b/fs/stat.c
-@@ -87,6 +87,8 @@ int vfs_fstat(unsigned int fd, struct kstat *stat)
- }
- EXPORT_SYMBOL(vfs_fstat);
+@@ -74,6 +74,10 @@ int vfs_getattr(struct path *path, struct kstat *stat)
  
+ EXPORT_SYMBOL(vfs_getattr);
+ 
++#ifdef CONFIG_KSU
 +extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
++#endif
 +
- int vfs_fstatat(int dfd, const char __user *filename, struct kstat *stat,
- 		int flag)
+ int vfs_fstat(unsigned int fd, struct kstat *stat)
  {
-@@ -94,6 +96,8 @@ int vfs_fstatat(int dfd, const char __user *filename, struct kstat *stat,
+ 	struct fd f = fdget_raw(fd);
+@@ -93,6 +97,9 @@ int vfs_fstatat(int dfd, const char __user *filename, struct kstat *stat,
+ 	struct path path;
  	int error = -EINVAL;
  	unsigned int lookup_flags = 0;
++#ifdef CONFIG_KSU
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
  
-+        ksu_handle_stat(&dfd, &filename, &flag);
-+
  	if ((flag & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT |
  		      AT_EMPTY_PATH)) != 0)
- 		goto out;
