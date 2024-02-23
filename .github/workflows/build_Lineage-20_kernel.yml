@@ -1,0 +1,92 @@
+name: Build Lineage-20 Kernel with KernelSU
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout this repository
+      uses: actions/checkout@v3
+      with:
+        ref: main
+        path: repo
+
+    - name: Checkout kernel code
+      uses: actions/checkout@v3
+      with:
+        repository: LineageOS/android_kernel_oneplus_sdm845
+        ref: lineage-20
+        path: android_kernel_oneplus_sdm845
+
+    - name: Checkout AnyKernel3 code
+      uses: actions/checkout@v3
+      with:
+        ref: AnyKernel3
+        path: AnyKernel3
+
+    - name: Set up ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        max-size: 2G
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get upgrade
+        sudo apt-get install gcc-aarch64-linux-gnu
+        sudo apt-get install gcc-arm-linux-gnueabi
+
+    - name: Check KernelSU code
+      run: |
+        cd android_kernel_oneplus_sdm845
+        curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s
+
+    - name: Get version and commit
+      run: |
+        cd android_kernel_oneplus_sdm845/KernelSU
+        VERSION=$(($(git rev-list --count HEAD)+10200))
+        echo "KSU_VERSION=$VERSION" >> $GITHUB_ENV
+        echo $VERSION
+
+    - name: modify code
+      run: |
+        cd android_kernel_oneplus_sdm845
+        git apply ../repo/diff/patch.diff
+        git apply ../repo/diff/drivers.diff
+        git apply ../repo/diff/selinux.diff
+        cp ../repo/configs/* ./arch/arm64/configs
+
+    - name: Submit the modified file
+      run: |
+        cd android_kernel_oneplus_sdm845
+        git config --global user.name "nekoaoxiang"
+        git config --global user.email "aoxiang1221@gmail.com"
+        git add -A
+        git commit -a -m "Add KernelSU"
+
+    - name: download clang and delete some AnyKernel3 code
+      run: |
+        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-14.0.0/clang+llvm-14.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+        tar xf clang+llvm-14.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+        rm -rf AnyKernel3/.git
+
+    - name: Build Kernel With KernelSU
+      run: |
+        export PATH=$(pwd)/clang+llvm-14.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/:$PATH
+        cd android_kernel_oneplus_sdm845
+        make O=out $KERNEL_DEFCONFIG
+        make -j$(nproc --all) O=out ARCH=arm64 CC="ccache clang" CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- LLVM=1
+        cp out/arch/arm64/boot/Image.gz-dtb ../AnyKernel3
+      env:
+        KERNEL_DEFCONFIG: "enchilada_Lineage-20_defconfig"
+        ARCH: arm64
+        SUBARCH: arm64
+
+    - name: Upload AnyKernel3
+      uses: actions/upload-artifact@v3
+      with:
+        name: AnyKernel3_Lineage-20_${{ env.KSU_VERSION }}
+        path: "AnyKernel3/*"
