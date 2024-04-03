@@ -65,6 +65,7 @@ jobs:
         cd android_kernel_oneplus_sdm845
         git config --global user.name "nekoaoxiang"
         git config --global user.email "aoxiang1221@gmail.com"
+        git submodule add https://github.com/tiann/KernelSU KernelSU
         git add -A
         git commit -a -m "Add KernelSU"
 
