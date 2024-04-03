@@ -57,6 +57,7 @@ jobs:
         git apply ../repo/diff/patch.diff
         git apply ../repo/diff/drivers.diff
         git apply ../repo/diff/selinux.diff
+        git apply ../repo/diff/umount.diff
         cp ../repo/configs/* ./arch/arm64/configs
 
     - name: Submit the modified file
