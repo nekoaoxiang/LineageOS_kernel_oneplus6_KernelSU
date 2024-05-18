@@ -7,18 +7,30 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v3
+        with:
+          ref: main
+          path: repo
+
       - name: Checkout Anykernel3 branch 
         uses: actions/checkout@v3 
         with: 
-          ref: AnyKernel3
+          repository: osm0sis/AnyKernel3
+          ref: master
+          path: anykernel3
           fetch-depth: 0
+
       - name: Set up Git 
-        run: | 
+        run: |
           git config --global user.name "GitHub Actions" 
           git config --global user.email "actions@github.com" 
+
       - name: Sync with Anykernel3 
-        run: | 
-          git remote add upstream https://github.com/osm0sis/AnyKernel3
-          git branch -m master
-          git pull upstream master --rebase
-          git push origin master:AnyKernel3 --force
+        run: |
+          cd anykernel3
+          git remote add github https://actions:$GITHUB_TOKEN@github.com/nekoaoxiang/LineageOS_kernel_oneplus6_KernelSU.git
+          git apply ../repo/diff/anykernel3.diff
+          git push github master:AnyKernel3 --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
