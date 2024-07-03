@@ -60,7 +60,7 @@ jobs:
         make -j$(nproc --all) O=out ARCH=arm64 CC="ccache clang" CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- LLVM=1
         cp out/arch/arm64/boot/Image.gz-dtb ../AnyKernel3
       env:
-        KERNEL_DEFCONFIG: "enchilada_docker_defconfig"
+        KERNEL_DEFCONFIG: "enchilada_Lineage-20_defconfig"
         ARCH: arm64
         SUBARCH: arm64
 
